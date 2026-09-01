@@ -1,0 +1,32 @@
+# test_learnings.txt — craft-co-backend CodeValid onboarding
+
+## DB / ORM detection
+- Provider: PostgreSQL (prisma/schema.prisma datasource provider = "postgresql", migration_lock.toml provider = "postgresql")
+- ORM skill: prisma
+- MIGRATE_CMD chosen: npx prisma migrate deploy  (per prisma skill START rule; never "true" when Prisma is present)
+- Migration source path: prisma/migrations/0001_initial/migration.sql  (hand-authored from schema.prisma; prisma/migrations/ existed but contained only migration_lock.toml — no SQL files)
+
+## Prisma 7 specifics
+- @prisma/client ^7.8.0 + @prisma/adapter-pg used → Prisma 7 rules apply
+- Added `output = "../node_modules/.prisma/client"` to generator block in prisma/schema.prisma (required for Prisma 7 explicit output path)
+- prisma.config.ts already reads DATABASE_URL from env — no seam change needed
+- Build order: npm install --ignore-scripts → COPY . . → npx prisma generate → npm run build
+  (--ignore-scripts prevents postinstall from running prisma generate before source is in the image)
+
+## No lockfile — use npm install not npm ci
+- Title: npm ci fails — no package-lock.json in build context
+- Failed reason: `npm ci` requires a lockfile; package-lock.json is listed in .gitignore and is not committed
+- Root cause: .gitignore excludes `package-lock.json` so it is never in the build context; `npm ci` with `COPY package.json package-lock.json* ./` gets no lockfile and errors
+- Fix: Changed Dockerfile to `COPY package.json ./` and `RUN npm install --ignore-scripts` instead of `npm ci`
+
+## Resend email
+- provisioner: none — Resend SDK already guards on process.env.RESEND_API_KEY; returns null and no-ops when unset.
+  The Resend constructor accepts only an API key string (no base-URL parameter), so no toxiproxy route or WireMock stub is possible without a code change. SDK will never hit the network in the test environment.
+
+## Health route
+- GET /health exists in src/index.ts:20 — no route addition required.
+- health_check_path and api_probe_path both set to /health in dependencies.json.
+
+## .gitignore note
+- prisma/migrations/ must not be excluded from build context. The existing .gitignore comment confirms this: "# /prisma/migrations/ — kept for build context".
+- No .dockerignore exists; no exclusion risk for prisma/ or .codevalid/.
